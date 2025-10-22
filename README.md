@@ -2,8 +2,6 @@
 
 A Chrome extension that automatically detects and renders Mermaid diagrams in Confluence and other Atlassian pages.
 
-> **📢 Important**: If you installed v1.0.0, please reload the extension to get the CSP fix (v1.0.1). See [UPDATE_INSTRUCTIONS.md](UPDATE_INSTRUCTIONS.md) for details.
-
 ## Features
 
 - ✅ **Auto-Detection**: Automatically finds code blocks containing Mermaid syntax
