@@ -1,0 +1,132 @@
+name: Release Extension
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.2)'
+        required: true
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate version
+        run: |
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          MANIFEST_VERSION=$(grep -o '"version": "[^"]*' manifest.json | cut -d'"' -f4)
+          echo "Tag version: $VERSION"
+          echo "Manifest version: $MANIFEST_VERSION"
+          if [ "$VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "Error: Version mismatch!"
+            echo "Git tag: v$VERSION"
+            echo "manifest.json: $MANIFEST_VERSION"
+            exit 1
+          fi
+
+      - name: Create build directory
+        run: |
+          mkdir -p build releases
+
+      - name: Copy extension files
+        run: |
+          cp manifest.json build/
+          cp content.js build/
+          cp popup.html build/
+          cp popup.js build/
+          cp icon16.png build/
+          cp icon48.png build/
+          cp icon128.png build/
+          cp README.md build/
+          cp LICENSE build/
+
+      - name: Create ZIP archive
+        run: |
+          cd build
+          zip -r ../releases/mermaid-confluence-renderer-v${{ steps.get_version.outputs.VERSION }}.zip .
+          cd ..
+
+      - name: Generate checksums
+        run: |
+          cd releases
+          sha256sum mermaid-confluence-renderer-v${{ steps.get_version.outputs.VERSION }}.zip > mermaid-confluence-renderer-v${{ steps.get_version.outputs.VERSION }}.zip.sha256
+          cat mermaid-confluence-renderer-v${{ steps.get_version.outputs.VERSION }}.zip.sha256
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          if [ -f CHANGELOG.md ]; then
+            # Extract changelog section for this version
+            CHANGELOG=$(sed -n "/## \[v$VERSION\]/,/## \[v/p" CHANGELOG.md | sed '$d')
+            # Save to file for GitHub release
+            echo "$CHANGELOG" > release-notes.md
+          else
+            echo "Release v$VERSION" > release-notes.md
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get_version.outputs.VERSION }}
+          name: Release v${{ steps.get_version.outputs.VERSION }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: false
+          files: |
+            releases/mermaid-confluence-renderer-v${{ steps.get_version.outputs.VERSION }}.zip
+            releases/mermaid-confluence-renderer-v${{ steps.get_version.outputs.VERSION }}.zip.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to Chrome Web Store (Optional)
+        if: false  # Disable until configured
+        env:
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          CHROME_APP_ID: ${{ secrets.CHROME_APP_ID }}
+        run: |
+          # Install chrome-webstore-upload-cli
+          npm install -g chrome-webstore-upload-cli
+
+          # Upload to Chrome Web Store
+          chrome-webstore-upload upload \
+            --source releases/mermaid-confluence-renderer-v${{ steps.get_version.outputs.VERSION }}.zip \
+            --extension-id $CHROME_APP_ID \
+            --client-id $CHROME_CLIENT_ID \
+            --client-secret $CHROME_CLIENT_SECRET \
+            --refresh-token $CHROME_REFRESH_TOKEN
+
+      - name: Publish Release Summary
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** v${{ steps.get_version.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Archive:** mermaid-confluence-renderer-v${{ steps.get_version.outputs.VERSION }}.zip" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Files Created" >> $GITHUB_STEP_SUMMARY
+          ls -lh releases/ >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### SHA256 Checksum" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat releases/mermaid-confluence-renderer-v${{ steps.get_version.outputs.VERSION }}.zip.sha256 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
