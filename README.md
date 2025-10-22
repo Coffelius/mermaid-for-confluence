@@ -25,6 +25,17 @@ A Chrome extension that automatically detects and renders Mermaid diagrams in Co
 
 ## Installation
 
+### From GitHub Release (Recommended)
+
+1. Go to the [Releases](https://github.com/Coffelius/mermaid-for-confluence/releases) section
+2. Download the latest `mermaid-confluence-renderer-vX.X.X.zip` file
+3. Extract the ZIP file to a folder on your computer
+4. Open Chrome and navigate to `chrome://extensions/`
+5. Enable "Developer mode" in the top right
+6. Click "Load unpacked"
+7. Select the extracted folder
+8. The extension is now installed!
+
 ### From Source (Developer Mode)
 
 1. Clone or download this repository
